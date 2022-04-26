@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Transfer Test</title>
+	<script src="./node_modules/web3/dist/web3.min.js"></script>
+</head>
+<body>
+	<div class="container">
+		<h1>Smart Transfer Test</h1>
+		<label for="depositAmount" class="col-lg-2 control-label">Amount to Deposit</label>
+			<input id="depositAmount" type="text">
+		<button id="depositButton">Deposit</button>
+		<label for="transferAmount" class="col-lg-2 control-label">Amount to Transfer</label>
+			<input id="transferAmount" type="text">
+		<label for="transferAccount" class="col-lg-2 control-label">Account</label>
+			<input id="transferAccount" type="text">
+		<button id="transferButton">Transfer to Account</button>
+	</div>
+	<script src="./node_modules/jquery/dist/jquery.slim.min.js"></script>
+	<script>
+		if (typeof web3 !== 'undefined') {
+			web3 = new Web3(web3.currentProvider);
+		} else {
+			web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:7545"));
+		}
+		
+		web3.eth.defaultAccount = web3.eth.accounts[0];
+		
+		var transferContract = web3.eth.contract([{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"balances","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"value","type":"uint256"}],"name":"withdraw","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"value","type":"uint256"},{"name":"to","type":"address"}],"name":"transfer","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[],"name":"deposit","outputs":[],"payable":true,"stateMutability":"payable","type":"function"}]);
+		
+		var Transfer = transferContract.at('0x242a334d9df548524a67bc8f70c191fb5443abff');
+		
+		$("#depositButton").click(function() {
+			Transfer.deposit($("#depositAmount").val());
+		});
+		
+		$("#transferButton").click(function() {
+			Transfer.transfer($("#transferAmount").val(), $("#transferAccount").val());
+		});
+		
+	</script>
+	
+</body>
+</html>
