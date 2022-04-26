@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Choropleth Map of State Data</title>
+        <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+		<script type="text/javascript" src="../lib/d3-tip.min.js"></script>
+		<script type="text/javascript" src="../lib/d3-simple-slider.min.js"></script>
+		<script type="text/javascript" src ="../lib/topojson.v2.min.js"></script>
+<style>
+p{
+	position: absolute;
+	float: right;
+	margin-top: 600px;
+	margin-left: 1000px;
+}
+
+
+body {
+	font-family: sans-serif;
+	padding: 20px 20px 20px 20px;
+	margin: 20px 20px 20px 20px;
+}
+
+.country {
+	fill: none;
+}
+
+.tip {
+	line-height: 1;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.tip:after {
+	box-sizing: border-box;
+    display: inline;
+    font-size: 10px;
+    width: 100%;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.8);
+    content: "\25BC";
+    position: absolute;
+    text-align: center;
+}
+
+.tip.n:after {
+    margin: -2px 0 0 0;
+    top: 100%;
+    left: 0;
+}
+
+</style>
+    </head>
+    <body>
+        <script>
+		
+		var width = 1260,
+			height = 500;
+			
+		var promises = [
+			d3.json("states-10m.json"),
+			d3.csv("state-earthquakes.csv")]
+		
+		Promise.all(promises).then(ready)
+		
+		function ready(d) {
+		
+			var quakes = d3.map(),
+			quakesLog = d3.map(),
+			regions = d3.map(),
+			us = d[0],
+			data = d[1],
+			selectVal = '2011',
+			
+			tip = d3.tip()
+				.attr("class", "tip")
+				.html(function(d) {
+					return "State: " + d.properties.name + 
+					"<br/>" + "Region: " + d.region + "<br/>" +
+					"Year: " + d.year + "<br/>" +
+					"Earthquakes: " + d.quakes;
+				}),
+			
+			slider = d3.sliderHorizontal()
+				.min(2010)
+				.max(2015)
+				.step(1)
+				.width(500)
+				.ticks(5)
+				.tickFormat(d3.format('.0f'))
+				.on("onchange", value => {	
+					//console.log(value);
+					update(value.toString());
+				});
+			
+			d3.select("body")
+				.append("div")
+				.style("display", "flex")
+				.attr("id", "slider")
+				.text("Year");
+					
+			d3.select("#slider")
+				.append("svg")
+				.attr("width", 600)
+				.attr("height", 100)
+				.append('g')
+				.attr('transform', 'translate(30,10)')
+				.call(slider);
+					
+			var svg = d3.select("body")
+				.append("svg")
+				.attr("width", width)
+				.attr("height", height);
+								
+			var path = d3.geoPath()
+				.projection(d3.geoAlbersUsa());
+				
+			var x = d3.scaleLog()
+					.range([0, 9]);
+					//.rangeRound([600, 860]);
+			
+			//console.log(d3.interpolateBlues(1));
+			
+			var colour = d3.scaleThreshold()
+				//.domain([1, 10, 50, 100, 500, 800, 900, 1000, 2000])
+				.range(d3.schemeBlues[9]);
+							
+			svg.append("g")
+				.attr("class", "country");
+				
+			svg.append("text")
+					.attr("class", "caption")
+					.attr("transform", () => "translate(" + 
+						(width-250) + "," + "25)")
+					.attr("fill", "#000")
+					.attr("text-anchor", "middle")
+					.attr("font-weight", "bold")
+					.text("Earthquake Frequency");
+					
+			svg.append("g")
+				.attr("class", "legend");
+			
+			svg.call(tip);			
+				
+			function update(year) {
+				
+				data.map(function(d) {
+					regions.set(d.States, d.Region);
+					var n = +d[year];
+					
+					if (n == 0) {
+						n = 0.9;
+					}
+					
+					quakesLog.set(d.States, Math.log(n));
+					quakes.set(d.States, +d[year]);
+				});
+				
+				var minVal = d3.min(quakes.values()),
+				maxVal = d3.max(quakes.values()),
+				minLog = -d3.min(quakesLog.values()),
+				maxLog = d3.max(quakesLog.values());
+				
+				//console.log(Math.exp(maxLog));
+				
+				var step = (maxLog - minLog)/9,
+				colRange = d3.range(minLog, maxLog, step);
+				
+				x.domain([0.9, maxVal]);
+				
+				colour.domain(colRange);
+				//console.log(colRange);
+				
+				var country = svg.selectAll("g.country")
+						.selectAll("path")
+						.data(topojson.feature(us, 
+							us.objects.states).features);
+							
+				var legend = svg.selectAll("g.legend")
+						.selectAll("rect")
+						.data(colour.range().map(function(d) {
+							d = colour.invertExtent(d);
+							
+							if (d[0] == null) d[0] = 0;
+							if (d[1] == null) d[1] = x.domain()[1];
+							//console.log(d);
+							return d;
+						}));
+						
+				var legendTxt = svg.selectAll("g.legend")
+						.selectAll(".text")
+						.data(colour.domain().slice());
+				
+				country.exit().remove();
+				legend.exit().remove();
+				legendTxt.exit().remove();
+				
+				country.enter().append("path")
+					.attr("stroke", "black")
+					.merge(country)
+					.attr("fill", function(d) {
+						d.year = year;
+						d.region = regions.get(d.properties.name);
+						d.quakes = quakes.get(d.properties.name);
+						
+						return colour(quakesLog.get(d.properties.name)); })
+					.attr("d", path)
+					.on('mouseover', tip.show)
+					.on('mouseout', tip.hide);
+					
+				legend.enter().append("rect")
+					.attr("height", 20)
+					.attr("width", 20)
+					.attr("fill", d => colour(d[0]))
+					.attr("transform", (d,i) => "translate(" + 
+						(width-260) + "," + ((i*25)+50) + ")");
+				
+				legendTxt.enter().append("text")
+					.attr("class", "text")
+					.attr("text-anchor", "start")
+					.attr("font-size", 11)
+					.merge(legendTxt)
+					.attr("transform", (d,i) => "translate(" + 
+						(width-230) + "," + ((i*25)+60) + ")")
+					.attr("dy", "0.35em")
+					.text(function(d) {
+						//console.log(d);
+						return Math.round(Math.exp(d));
+					});
+
+			}
+			
+			update(slider.value().toString());
+
+		}
+			
+			
+        </script>
+	<p>dchew7</p>
+    </body>
+</html>

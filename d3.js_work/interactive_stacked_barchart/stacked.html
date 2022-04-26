@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Visualizing Earthquake Counts by State</title>
+        <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+<style>
+
+body {
+	font-family: sans-serif;
+	padding: 20px 20px 20px 20px;
+}
+
+.legend {
+	display: block;
+}
+
+svg {
+	display: block;
+}
+
+</style>
+    </head>
+    <body>
+        <script>
+		var margin = {top: 20, right: 20, bottom: 20, left: 50}
+		, width = window.innerWidth/1.3 - margin.left - margin.right 
+		, height = window.innerHeight/1.15 - margin.top - margin.bottom;
+
+		d3.csv("earthquake.csv", function(d) {
+			return {
+				year: d.Year,
+				state: d.State,
+				'7.0+': +d['7.0+'],
+				'6_6.9': +d['6_6.9'],
+				'5_5.9': +d['5_5.9'],
+				total: d3.sum([
+							+d['7.0+'],
+							+d['6_6.9'],
+							+d['5_5.9']])
+			};
+		}).then(function(data) {
+			
+			var keys = data.columns.slice(2)
+			, years = [...new Set(data.map(d => d.year))]
+			, states = [...new Set(data.map(d => d.state))];
+			
+			var button = d3.select("body")
+					.append("text")
+					.text("Select Year:  ")
+					.append("select")
+					.attr("id", "button")
+					.selectAll("options")
+					.data(years)
+					.enter().append("option")
+					.text(d => d)
+					.attr("value", d => d);	
+			
+			var chart = d3.select("body")
+					.append("svg")
+					.attr("id", "stackChart")
+					.attr("width", width + margin.left + 
+						margin.right)
+					.attr("height", height + margin.top + 
+						margin.bottom)
+					.append("g")
+					.attr("transform", "translate(" + 
+						margin.left + "," + margin.top + 
+						")");
+			
+			var x = d3.scaleBand()
+					.domain(data.map(d => d.state))
+					.range([margin.left, 
+						width-margin.right])
+					.padding(0.1)
+					
+			, y = d3.scaleLinear()
+					.range([height-margin.bottom, 
+						margin.top])
+					
+			, colour = d3.scaleOrdinal()
+					.domain(keys)
+					.range(["#b33040", 
+							"#d25c4d", 
+							"#f2b447"])
+			
+			, xAxis = chart.append("g")
+				.attr("class", "x-axis")
+				.attr("transform", "translate(0," + 
+					(height-margin.bottom) + ")")
+				.call(d3.axisBottom(x))
+			
+			, yAxis = chart.append("g")
+				.attr("class", "y-axis")
+				.attr("transform", "translate(" + 
+					margin.left + ",0)");
+			
+			// add x-axis label
+			chart.append("text")
+				.attr("text-anchor", "middle")
+				.attr("x", width/2)
+				.attr("y", height)
+				.attr("dy", "1em")
+				.text("State");
+
+			// add y-axis label
+			chart.append("text")
+				.attr("transform", "rotate(-90)")
+				.attr("text-anchor", "middle")
+				.attr("x", 0-height/2)
+				.attr("y", 0-margin.left)
+				.attr("dy", "1em")
+				.text("Number of Earthquakes");
+				
+			// title
+			chart.append("text")
+				.attr("x", width/2)             
+				.attr("y", 0-margin.top)
+				.attr("dy", "1em")
+				.attr("text-anchor", "middle")  
+				.style("font-size", "20px") 
+				.style("font-weight", "bold")
+				.text("Visualizing Earthquake Counts by State");
+				
+			var legend = chart.append("g")
+					.attr("class", "legend")
+					.attr("transform", "translate(" +
+						(width-margin.left-margin.right) + ",0)")
+					.attr("text-anchor", "start")
+					.attr("font-size", 12)
+					.selectAll("g")
+					.data(colour.domain().slice())
+					.enter().append("g")
+					.attr("transform", (d,i) => "translate(0," +
+						(i*25) + ")");
+								
+			legend.append("circle")
+				.attr("x", -10)
+				.attr("r", 8)
+				.attr("fill", colour);
+				
+			legend.append("text")
+				.attr("x", 15)
+				.attr("y", 2)
+				.attr("dy", "0.15em")
+				.text(d => d);
+			
+			update(d3.select("#button").property("value"));
+			
+			d3.select("svg").append("text").text("dchew7").attr("transform", "translate(" + (width-margin.left-margin.right) + "," +
+			(height + margin.top + margin.bottom) + ")");
+			
+			function update(year) {
+		
+				var yearData = data.filter(d => d.year == year);
+				
+				y.domain([0, d3.max(yearData, d => d.total)]).nice();
+				
+				chart.selectAll(".y-axis")
+					.call(d3.axisLeft(y));
+								
+				var grp = chart.selectAll("g.group")
+							.data(d3.stack()
+							.keys(keys)
+							(yearData), d => d.key);
+							
+				grp.exit().remove();
+				
+				grp.enter().append("g")
+					.classed("group", true)
+					.attr("fill", d => colour(d.key));
+					
+				var bars = chart.selectAll("g.group")
+								.selectAll("rect")
+								.data(d => d, e => e.data.state);
+								
+				bars.exit().remove();
+				
+				bars.enter().append("rect")
+					.attr("width", x.bandwidth())
+					.merge(bars)
+					.attr("x", d => x(d.data.state))
+					.attr("y", d => y(d[1]))
+					.attr("height", d => y(d[0])-y(d[1]));
+					
+				var barText = chart.selectAll(".text")
+								.data(yearData, d => d.state);
+								
+				barText.exit().remove();
+				
+				barText.enter().append("text")
+					.attr("class", "text")
+					.attr("text-anchor", "middle")
+					.merge(barText)
+					.attr("x", d => x(d.state) + x.bandwidth()/2)
+					.attr("y", d => y(d.total)-5)
+					.text(d => d.total);
+					
+				}
+			
+			var choose = d3.select("#button")
+						.on("change", function() {
+							update(this.value);
+						});
+		});
+        </script>
+    </body>
+</html>
